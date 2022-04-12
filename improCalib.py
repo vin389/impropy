@@ -204,6 +204,61 @@ def r44FromCamposYawPitch2(campos, yaw, pitch):
     r44 = np.linalg.inv(r44inv)
     return r44
     
+def findTransform3pTo3p(from3p, to3p):
+    """
+    Returns a 4-by-4 transformation matrix that transforms three 3D points 
+    from from3p to to3p, and an error flag
+    
+    Error flag:
+        0: success
+        -1: Error: wrong data dimension.
+        -2: Warning: singularity. Three points are almost collinear
+    """
+    # check dimension: both from3p and to3p must be 3 by 3 np array
+    if (from3p.shape != (3,3) or (to3p.shape != (3,3))):
+        return np.eye(4, dtype=float), -1
+    # transformation among three coordinate systems
+    # "from" coordinate sys (f)
+    # "to" coordinate sys (t)
+    # "temporary" coordinate (p)
+    # find r44_fp (from a temporary coordinate to the "from"-coordinate)
+    r44_fp = np.eye(4, dtype=float)
+    #   r44_fp[0:3][0] (vx) = norm(from3p[1] - from3p[0])
+    r44_fp[0:3,0] = from3p[1,0:3] - from3p[0,0:3]
+    r44_fp[0:3,0] /= np.linalg.norm(r44_fp[0:3,0])
+    #   r44_fp[0:3][1] (vy) = norm(from3p[2] - from3p[0])
+    r44_fp[0:3,1] = from3p[2,0:3] - from3p[0,0:3]
+    r44_fp[0:3,1] /= np.linalg.norm(r44_fp[0:3,1])
+    #   r44_fp[0:3][2] (vz)
+    r44_fp[0:3,2] = np.cross(r44_fp[0:3,0], r44_fp[0:3,1])
+    r44_fp[0:3,2] /= np.linalg.norm(r44_fp[0:3,2])
+    #   adjust r44_fp[0:3][1] (adjusted vy)
+    r44_fp[0:3,1] = np.cross(r44_fp[0:3,2], r44_fp[0:3,0])
+    #   origin
+    r44_fp[0:3,3] = from3p[0,0:3]
+    #   inverse
+    r44_pf = np.linalg.inv(r44_fp)
+    # find r44_fp (from a temporary coordinate to the "from"-coordinate)
+    r44_tp = np.eye(4, dtype=float)
+    #   r44_tp[0:3][0] (vx) = norm(to3p[1] - to3p[0])
+    r44_tp[0:3,0] = to3p[1,0:3] - to3p[0,0:3]
+    r44_tp[0:3,0] /= np.linalg.norm(r44_tp[0:3,0])
+    #   r44_tp[0:3][1] (vy) = norm(t3p[2] - t3p[0])
+    r44_tp[0:3,1] = to3p[2,0:3] - to3p[0,0:3]
+    r44_tp[0:3,1] /= np.linalg.norm(r44_tp[0:3,1])
+    #   r44_tp[0:3][2] (vz)
+    r44_tp[0:3,2] = np.cross(r44_tp[0:3,0], r44_tp[0:3,1])
+    r44_tp[0:3,2] /= np.linalg.norm(r44_tp[0:3,2])
+    #   adjust r44_tp[0:3][1] (adjusted vy)
+    r44_tp[0:3,1] = np.cross(r44_tp[0:3,2], r44_tp[0:3,0])
+    #   origin
+    r44_tp[0:3,3] = to3p[0,0:3]
+    #   inverse
+    r44_pt = np.linalg.inv(r44_tp)
+    r44_tf = np.matmul(r44_tp, r44_pf) 
+    r44_ft = np.matmul(r44_fp, r44_pt) 
+    return r44_tf
+
 #@jit(nopython=True)
 def bladePointFromThetaAndDeflection(r_blade, r44_turbine, theta, deflection): 
     """
